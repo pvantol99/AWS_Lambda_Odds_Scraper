@@ -25,3 +25,4 @@ https://repost.aws/knowledge-center/lambda-execution-role-s3-bucket
 
 Once all this is done, you should be able to schedule your lambda function to pull odds at whatever time interval you care for (pay attention to the cost though)!
 
+Huge thanks to [RC Coding](https://www.youtube.com/watch?v=DxET43rUkig&t=604s) and his web scraping projects, off which the majority of this code is based!
