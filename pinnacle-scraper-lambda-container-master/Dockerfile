@@ -46,6 +46,7 @@ RUN apk update \
 COPY requirements.txt .
 RUN python${RUNTIME_VERSION} -m pip install -r requirements.txt --target ${FUNCTION_DIR}
 
+
 # Stage 4 - final runtime image
 # Grab a fresh copy of the Python image
 FROM python-alpine

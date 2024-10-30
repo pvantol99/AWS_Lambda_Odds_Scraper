@@ -3,10 +3,18 @@ import hashlib
 import io
 import logging
 import os
-#import requests
+import requests
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.chrome.options import Options 
+from selenium.webdriver.chrome.service import Service
 from datetime import datetime
+import random 
 
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(process)d --- %(name)s %(funcName)20s() : %(message)s',
@@ -16,48 +24,52 @@ class OddsScraper:
     logger = logging.getLogger('OddsScraper')
 
     def __init__(self):
+        try:
+            self.driver.quit()
+        except:
+            print('No running driver found')
         self._tmp_folder = '/tmp/img-scrpr-chrm/'
-        self.driver = webdriver.Chrome(executable_path='/usr/bin/chromedriver', options=self.__get_default_chrome_options())
+        self.service = Service(executable_path='/usr/bin/chromedriver')
+        self.driver = webdriver.Chrome(service = self.service, options=self.__get_default_chrome_options())
 
 
     def get_odds(self,sport1 = 'Basketball', country1 = 'USA',league1 = 'NBA'):
         #search_url = "https://www.google.com/search?safe=off&site=&tbm=isch&source=hp&q={q}&oq={q}&gs_l=img"
-        #Temporary: PASTE IN LINK MANUALLY
-        urlnew = f'''https://www.pinnacle.com/en/{sport1}/{league1}/matchups/#all'''
+        urlnew = f'''https://www.pinnacle.com/en/{sport1}/{league1}/matchups/'''
         print(urlnew)
         self.driver.get(urlnew)
-        t.sleep(7.5)
-        
-        ### Verify all odds are being displayed by pressing See more (if exists)
+        ### Time to load
+        t.sleep(7)
         p_links = self.driver.find_elements(By.TAG_NAME,'p')
         for p in range(0,len(p_links)):
+                #print(p_links[p].text)
             if p_links[p].text == 'See more':
-                p_links[p].click()
-                print('clicked')
-                break
+               p_links[p].click()
+               break
 
-        ### Give time to load
-
+        ### More loading time
         t.sleep(3)
         ### Get Raw Info
-        content = self.driver.find_elements(By.CLASS_NAME,'contentBlock')
-        #print('content is; ')
-        #print(content)
-        if len(content) > 0:
-            print(content[0].text.split('\n'))
+        content = self.driver.find_elements(By.CLASS_NAME,'container-H9Oy8TIpsb')
+        print(content)
+        #c_refined = content[0].text.split('\n') 
         c_refined = []
-        for c in range(1,len(content) - 1):
-            if (len(content[c].text) > 0):
-                c_refined.append(content[c].text.split('\n'))
-            #print('c_refined is ')
-            #print(c_refined)
-        return c_refined
+        for c in range(0,len(content)):
+                if content[c].text.split('\n')[0] == 'Home':
+                    c_refined.append(content[c].text.split('\n'))
+        #        print(c_refined)
+        for i in range(0,len(c_refined)):
+            if len(c_refined[i]) > 21:
+                end = max([i for i,x in enumerate(c_refined[i]) if '+' in x])
+        c_refined2 = c_refined[i][:end]
+        return c_refined2
 
     def close_connection(self):
         self.driver.quit()
 
     def __scroll_to_end(self, sleep_time):
-        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        num = random.choice([3,4,5,6])
+        self.driver.execute_script(f'''window.scrollTo(0, document.body.scrollHeight/{num});''')
         t.sleep(sleep_time)
 
     def __get_default_chrome_options(self):
@@ -102,7 +114,8 @@ class OddsScraper:
             '--use-gl=swiftshader',
             '--use-mock-keychain',
             '--single-process',
-            '--headless']
+            '--headless'
+            ]
 
         #chrome_options.add_argument('--disable-gpu')
         for argument in lambda_options:
@@ -111,7 +124,7 @@ class OddsScraper:
         chrome_options.add_argument('--data-path={}'.format(self._tmp_folder + '/data-path'))
         chrome_options.add_argument('--homedir={}'.format(self._tmp_folder))
         chrome_options.add_argument('--disk-cache-dir={}'.format(self._tmp_folder + '/cache-dir'))
-        chrome_options.add_argument('--window-size=3000,2000')
+        chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--headless')
 
         return chrome_options
