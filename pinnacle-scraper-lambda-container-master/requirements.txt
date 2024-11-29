@@ -1,6 +1,6 @@
 requests==2.25.0
 selenium==4.23.0
-beautifulsoup4==4.9.3
+bs4==0.0.2
 Pillow==8.0.1
 boto3
 botocore
