@@ -17,6 +17,12 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import random 
 
+# Optional: use webdriver-manager for local dev when chromedriver is not at /usr/bin/chromedriver
+try:
+    from webdriver_manager.chrome import ChromeDriverManager
+except ImportError:
+    ChromeDriverManager = None
+
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(process)d --- %(name)s %(funcName)20s() : %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S', level=logging.INFO)
@@ -30,8 +36,17 @@ class OddsScraper:
         except:
             print('No running driver found')
         self._tmp_folder = '/tmp/img-scrpr-chrm/'
-        self.service = Service(executable_path='/usr/bin/chromedriver')
-        self.driver = webdriver.Chrome(service = self.service, options=self.__get_default_chrome_options())
+        # Use Lambda chromedriver if present, else webdriver-manager for local dev
+        chromedriver_path = '/usr/bin/chromedriver'
+        if os.path.isfile(chromedriver_path):
+            self.service = Service(executable_path=chromedriver_path)
+        elif ChromeDriverManager is not None:
+            self.service = Service(executable_path=ChromeDriverManager().install())
+        else:
+            raise RuntimeError(
+                'ChromeDriver not found. Install webdriver-manager: pip install webdriver-manager'
+            )
+        self.driver = webdriver.Chrome(service=self.service, options=self.__get_default_chrome_options())
 
     def class_finder(self,content):
         soup = BeautifulSoup(content , 'html.parser') 
@@ -61,8 +76,12 @@ class OddsScraper:
         return print ('No Odds found')
 
     def get_odds(self,sport1 = 'Basketball', country1 = 'USA',league1 = 'NBA'):
-        #search_url = "https://www.google.com/search?safe=off&site=&tbm=isch&source=hp&q={q}&oq={q}&gs_l=img"
-        urlnew = f'''https://www.pinnacle.com/en/{sport1}/{league1}/matchups/'''
+        # Pinnacle URL format: /en/{sport}/{league}/matchups/#all (league = country-league slug)
+        def slug(s):
+            return s.lower().strip().replace(' ', '-')
+        league_slug = slug(f'{country1}-{league1}')
+        sport_slug = slug(sport1)
+        urlnew = f'https://www.pinnacle.com/en/{sport_slug}/{league_slug}/matchups/#all'
         print(urlnew)
         self.driver.get(urlnew)
         ### Time to load
@@ -99,57 +118,38 @@ class OddsScraper:
 
     def __get_default_chrome_options(self):
         chrome_options = webdriver.ChromeOptions()
+        is_lambda = os.path.isfile('/usr/bin/chromedriver')
 
-        lambda_options = [
-            #'--autoplay-policy=user-gesture-required',
-            #'--disable-background-networking',
-            #'--disable-background-timer-throttling',
-            #'--disable-backgrounding-occluded-windows',
-            #'--disable-breakpad',
-            #'--disable-client-side-phishing-detection',
-            #'--disable-component-update',
-            #'--disable-default-apps',
-            '--disable-dev-shm-usage',
-            #'--disable-domain-reliability',
-            #'--disable-extensions',
-            #'--disable-features=AudioServiceOutOfProcess',
-            #'--disable-hang-monitor',
-            #'--disable-ipc-flooding-protection',
-            #'--disable-notifications',
-            #'--disable-offer-store-unmasked-wallet-cards',
-            #'--disable-popup-blocking',
-            #'--disable-print-preview',
-            #'--disable-prompt-on-repost',
-            #'--disable-renderer-backgrounding',
-            '--disable-setuid-sandbox',
-            #'--disable-speech-api',
-            #'--disable-sync',
-            #'--disk-cache-size=33554432',
-            #'--hide-scrollbars',
-            #'--ignore-gpu-blacklist',
-            #'--ignore-certificate-errors',
-            '--metrics-recording-only',
-            '--mute-audio',
-            '--no-default-browser-check',
-            '--no-first-run',
-            '--no-pings',
-            '--no-sandbox',
-            '--no-zygote',
-            '--password-store=basic',
-            '--use-gl=swiftshader',
-            '--use-mock-keychain',
-            '--single-process',
-            '--headless'
+        if is_lambda:
+            lambda_options = [
+                '--disable-dev-shm-usage',
+                '--disable-setuid-sandbox',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--no-first-run',
+                '--no-pings',
+                '--no-sandbox',
+                '--no-zygote',
+                '--password-store=basic',
+                '--use-gl=swiftshader',
+                '--use-mock-keychain',
+                '--single-process',
+                '--headless'
             ]
-
-        #chrome_options.add_argument('--disable-gpu')
-        for argument in lambda_options:
-            chrome_options.add_argument(argument)
-        chrome_options.add_argument('--user-data-dir={}'.format(self._tmp_folder + '/user-data'))
-        chrome_options.add_argument('--data-path={}'.format(self._tmp_folder + '/data-path'))
-        chrome_options.add_argument('--homedir={}'.format(self._tmp_folder))
-        chrome_options.add_argument('--disk-cache-dir={}'.format(self._tmp_folder + '/cache-dir'))
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--headless')
+            for argument in lambda_options:
+                chrome_options.add_argument(argument)
+            chrome_options.add_argument('--user-data-dir={}'.format(self._tmp_folder + '/user-data'))
+            chrome_options.add_argument('--data-path={}'.format(self._tmp_folder + '/data-path'))
+            chrome_options.add_argument('--homedir={}'.format(self._tmp_folder))
+            chrome_options.add_argument('--disk-cache-dir={}'.format(self._tmp_folder + '/cache-dir'))
+            chrome_options.add_argument('--window-size=1920,1080')
+        else:
+            # Local dev: minimal options that work on macOS/Windows/Linux
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--headless')
 
         return chrome_options

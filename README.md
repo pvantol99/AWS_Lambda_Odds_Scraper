@@ -25,4 +25,32 @@ https://repost.aws/knowledge-center/lambda-execution-role-s3-bucket
 
 Once all this is done, you should be able to schedule your lambda function to pull odds at whatever time interval you care for (pay attention to the cost though)!
 
+#### Saving to Supabase (optional)
+You can store scrape results in a Supabase table instead of (or in addition to) S3.
+
+1. **Create the table** in the Supabase SQL Editor (same table for both scrapers):
+
+```sql
+create table if not exists public.odds_scrape_runs (
+  id uuid primary key default gen_random_uuid(),
+  scraped_at timestamptz not null default now(),
+  source text not null,
+  sport text not null,
+  country text not null,
+  league text not null,
+  payload jsonb not null
+);
+
+alter table public.odds_scrape_runs enable row level security;
+create policy "Service role full access" on public.odds_scrape_runs
+  for all using (true);
+```
+
+2. **Set Lambda environment variables**: `SUPABASE_URL` (your project URL) and `SUPABASE_SERVICE_ROLE_KEY` (from Project Settings → API).
+
+3. **Invoke with Supabase output**: pass `"output": "supabase"` or `"supabase": true` in the event. You can still pass `bucket` and `folder_path` to also write to S3.
+
+Example event for Supabase only:  
+`{"sport": "Football", "country": "Switzerland", "league": "Super League", "output": "supabase"}`
+
 Huge thanks to [RC Coding](https://www.youtube.com/watch?v=DxET43rUkig&t=604s) and his web scraping projects, off which the majority of this code is based!

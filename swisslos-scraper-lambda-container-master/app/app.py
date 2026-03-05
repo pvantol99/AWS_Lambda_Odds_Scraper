@@ -1,22 +1,46 @@
 import aws_s3 as s3s
 import scraper as scraper
+import supabase_odds as supabase
 from datetime import datetime
 
-def handler(event, context
-    ):
+
+def handler(event, context):
     scr = scraper.OddsScraper()
-    odds_list = scr.get_odds(sport1 = event['sport'], country1 = event['country'],league1 = event['league'])
+    odds_list = scr.get_odds(
+        sport1=event["sport"],
+        country1=event["country"],
+        league1=event["league"],
+    )
     now = datetime.now()
     dt_string = now.strftime("%d_%m_%Y_%H_%M_%S")
-    file_ = 'swisslos_' + event['league'] + '_' + dt_string
-    s3s.upload_object([dt_string,odds_list], event["bucket"], event["folder_path"]+file_)
-   #for url in urls:
-     #   img_obj, img_hash = scr.get_in_memory_image(url, 'jpeg')
-      #  files.append(img_hash)
-      #  s3s.upload_object(img_obj, event['bucket'], 'swisslos_nba_'+dt_string)
     scr.close_connection()
-    return "Successfully loaded swisslos odds to bucket {}. Folder path {} and file name {}.".format(event["bucket"],
-                                                                                                  event["folder_path"],
-                                                                                                  file_)
-##event = {'bucket':'swisslosbucket','folder_type':'/new'}
-#handler(event)
+
+    results = []
+
+    # Save to Supabase if requested (event["output"] == "supabase" or event.get("supabase"))
+    if event.get("output") == "supabase" or event.get("supabase"):
+        if supabase.save_run(
+            source="swisslos",
+            sport=event["sport"],
+            country=event["country"],
+            league=event["league"],
+            odds_list=odds_list,
+            scraped_at=now,
+        ):
+            results.append("Supabase")
+
+    # Save to S3 if bucket is provided (backward compatible)
+    if event.get("bucket"):
+        file_ = "swisslos_" + event["league"] + "_" + dt_string
+        folder = event.get("folder_path") or event.get("folder_type") or ""
+        s3s.upload_object(
+            [dt_string, odds_list],
+            event["bucket"],
+            folder + file_,
+        )
+        results.append("S3 bucket {} key {}".format(event["bucket"], folder + file_))
+
+    if not results:
+        return "No output configured: set event.output='supabase' and/or event.bucket for S3."
+
+    return "Successfully saved swisslos odds to: {}.".format(", ".join(results))

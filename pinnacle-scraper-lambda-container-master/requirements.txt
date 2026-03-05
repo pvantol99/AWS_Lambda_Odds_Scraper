@@ -4,3 +4,5 @@ bs4==0.0.2
 Pillow==8.0.1
 boto3
 botocore
+webdriver-manager
+supabase
